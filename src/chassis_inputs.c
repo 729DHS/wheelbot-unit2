@@ -43,12 +43,16 @@ void chassis_build_balance_input(struct balance_ctrl_input *input, uint32_t now)
 	input->enabled =
 		(g_chassis_sm.allow_output != 0U && g_chassis_sm.chassis_control_active != 0U) ? 1U : 0U;
 	input->position_hold_enabled = input->enabled;
-	input->rc_forward = sbus_raw_to_target(g_sbus_snapshot.raw[1], SBUS_CH1_ZERO_RAW);
-	input->rc_turn = sbus_raw_to_target(g_sbus_snapshot.raw[0], SBUS_CH0_ZERO_RAW);
 	if (g_chassis_debug_override.magic == 0x44424731U &&
 	    g_chassis_debug_override.force_rc != 0U) {
 		input->rc_forward = g_chassis_debug_override.rc_forward;
 		input->rc_turn = g_chassis_debug_override.rc_turn;
+	} else if (g_sbus_snapshot.connected != 0U) {
+		input->rc_forward = sbus_raw_to_target(g_sbus_snapshot.raw[1], SBUS_CH1_ZERO_RAW);
+		input->rc_turn = sbus_raw_to_target(g_sbus_snapshot.raw[0], SBUS_CH0_ZERO_RAW);
+	} else {
+		input->rc_forward = 0;
+		input->rc_turn = 0;
 	}
 	input->pitch_deg = g_rm_imu.pitch;
 	input->pitch_rate_dps = g_rm_imu.gyro[1] * RAD_TO_DEG;

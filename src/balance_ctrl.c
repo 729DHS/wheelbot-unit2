@@ -9,12 +9,15 @@
 #define BALANCE_RC_INPUT_MAX 1684.0f
 #define BALANCE_RC_SPEED_LIMIT_RPM BALANCE_WHEEL_SPEED_LIMIT_RPM
 
-#define BALANCE_SPEED_KP_DEFAULT 20.0f
-#define BALANCE_SPEED_KI_DEFAULT 0.05f
+/* Set to -1.0f if wheels spin the wrong direction when tilting */
+#define BALANCE_PITCH_SIGN 1.0f
+
+#define BALANCE_SPEED_KP_DEFAULT 10.0f
+#define BALANCE_SPEED_KI_DEFAULT 0.02f
 #define BALANCE_SPEED_INTEGRAL_LIMIT 80000.0f
 
-#define BALANCE_PITCH_KP_DEFAULT 90.0f
-#define BALANCE_PITCH_KD_DEFAULT 4.5f
+#define BALANCE_PITCH_KP_DEFAULT 30.0f
+#define BALANCE_PITCH_KD_DEFAULT 0.5f
 
 volatile struct balance_ctrl_state g_balance_ctrl = {
 	.magic = BALANCE_CTRL_MAGIC,
@@ -88,8 +91,8 @@ static float update_pitch_loop(volatile struct balance_ctrl_state *ctrl,
 	ctrl->pitch_deg = input->pitch_deg;
 	ctrl->pitch_rate_dps = input->pitch_rate_dps;
 	ctrl->pitch_target_deg = ctrl->pitch_zero_deg;
-	ctrl->pitch_error_deg = ctrl->pitch_target_deg - input->pitch_deg;
-	ctrl->pitch_rate_error_dps = -input->pitch_rate_dps;
+	ctrl->pitch_error_deg = (input->pitch_deg - ctrl->pitch_zero_deg) * BALANCE_PITCH_SIGN;
+	ctrl->pitch_rate_error_dps = input->pitch_rate_dps * BALANCE_PITCH_SIGN;
 	ctrl->pitch_p_out_rpm = ctrl->pitch_pd.kp * ctrl->pitch_error_deg;
 	ctrl->pitch_d_out_rpm = ctrl->pitch_pd.kd * ctrl->pitch_rate_error_dps;
 	ctrl->balance_speed_target_rpm = ctrl->pitch_p_out_rpm + ctrl->pitch_d_out_rpm;
