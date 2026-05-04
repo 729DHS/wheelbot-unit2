@@ -107,68 +107,22 @@ void chassis_apply_m3508_command(void)
 
 void chassis_apply_balance_control(uint32_t now)
 {
-	#define M3508_MAX_SPEED_RPM 480.0f
-	#define M3508_IDLE_LOW_SPEED_TARGET_RPM (M3508_MAX_SPEED_RPM * 0.1f)
-	#define M3508_IDLE_LOW_SPEED_KP 2.0f
-	#define M3508_IDLE_LOW_SPEED_KI 0.0f
-	#define M3508_IDLE_LOW_SPEED_INTEGRAL_LIMIT 0.0f
-	#define M3508_IDLE_LOW_SPEED_CURRENT_LIMIT 800.0f
-	static uint32_t last_ms;
-	static float left_integral;
-	static float right_integral;
-	float dt_scale;
-	float left_error;
-	float right_error;
-	float left_current;
-	float right_current;
+	struct balance_ctrl_input input;
+	struct balance_ctrl_output output;
 
-	if (last_ms == 0U || now == last_ms) {
-		dt_scale = 1.0f;
-	} else {
-		dt_scale = (float)(now - last_ms);
-	}
-	last_ms = now;
-
-	left_error = M3508_IDLE_LOW_SPEED_TARGET_RPM -
-		      (float)g_rm_m3508.motor[RM_M3508_CAN1_ID201].speed_rpm;
-	right_error = M3508_IDLE_LOW_SPEED_TARGET_RPM -
-		       (float)g_rm_m3508.motor[RM_M3508_CAN2_ID202].speed_rpm;
-
-	left_integral += left_error * dt_scale;
-	right_integral += right_error * dt_scale;
-	if (left_integral > M3508_IDLE_LOW_SPEED_INTEGRAL_LIMIT) {
-		left_integral = M3508_IDLE_LOW_SPEED_INTEGRAL_LIMIT;
-	} else if (left_integral < -M3508_IDLE_LOW_SPEED_INTEGRAL_LIMIT) {
-		left_integral = -M3508_IDLE_LOW_SPEED_INTEGRAL_LIMIT;
-	}
-	if (right_integral > M3508_IDLE_LOW_SPEED_INTEGRAL_LIMIT) {
-		right_integral = M3508_IDLE_LOW_SPEED_INTEGRAL_LIMIT;
-	} else if (right_integral < -M3508_IDLE_LOW_SPEED_INTEGRAL_LIMIT) {
-		right_integral = -M3508_IDLE_LOW_SPEED_INTEGRAL_LIMIT;
-	}
-
-	left_current = M3508_IDLE_LOW_SPEED_KP * left_error +
-		       M3508_IDLE_LOW_SPEED_KI * left_integral;
-	right_current = M3508_IDLE_LOW_SPEED_KP * right_error +
-			M3508_IDLE_LOW_SPEED_KI * right_integral;
-	if (left_current > M3508_IDLE_LOW_SPEED_CURRENT_LIMIT) {
-		left_current = M3508_IDLE_LOW_SPEED_CURRENT_LIMIT;
-	} else if (left_current < -M3508_IDLE_LOW_SPEED_CURRENT_LIMIT) {
-		left_current = -M3508_IDLE_LOW_SPEED_CURRENT_LIMIT;
-	}
-	if (right_current > M3508_IDLE_LOW_SPEED_CURRENT_LIMIT) {
-		right_current = M3508_IDLE_LOW_SPEED_CURRENT_LIMIT;
-	} else if (right_current < -M3508_IDLE_LOW_SPEED_CURRENT_LIMIT) {
-		right_current = -M3508_IDLE_LOW_SPEED_CURRENT_LIMIT;
-	}
+	chassis_build_balance_input(&input, now);
+	balance_ctrl_update(&g_balance_ctrl, &input, &output);
 
 	g_chassis_base.balance_updates++;
-	g_chassis_base.balance_active = 1U;
-	g_chassis_base.balance_left_current = (int16_t)left_current;
-	g_chassis_base.balance_right_current = (int16_t)right_current;
-	g_chassis_m3508_cmd.mode = CHASSIS_M3508_MODE_CURRENT;
-	g_chassis_m3508_cmd.current[RM_M3508_CAN1_ID201] = (int16_t)left_current;
-	g_chassis_m3508_cmd.current[RM_M3508_CAN2_ID202] = (int16_t)right_current;
+	g_chassis_base.balance_active = output.active;
+	g_chassis_base.balance_left_current = output.wheel_current[0];
+	g_chassis_base.balance_right_current = output.wheel_current[1];
+
+	if (output.active != 0U) {
+		g_chassis_m3508_cmd.mode = CHASSIS_M3508_MODE_CURRENT;
+		g_chassis_m3508_cmd.current[RM_M3508_CAN1_ID201] = output.wheel_current[0];
+		g_chassis_m3508_cmd.current[RM_M3508_CAN2_ID202] = output.wheel_current[1];
+	}
 }
 
 void chassis_update_common_status(uint32_t now)
