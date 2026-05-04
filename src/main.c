@@ -12,13 +12,16 @@ int main(void)
 	chassis_base_init();
 	chassis_threads_start();
 
-	printk("Waiting for DM4310 bringup...\n");
-	while (!g_dm4310.bringup_done) {
+	/* Wait up to 5s for DM4310 bringup (joints need 24V power) */
+	printk("Waiting for DM4310 bringup (max 5s)...\n");
+	for (int i = 0; i < 100 && !g_dm4310.bringup_done; i++) {
 		k_sleep(K_MSEC(50));
 	}
-
-	printk("Bringup done, holding joints...\n");
-	k_sleep(K_MSEC(1000));
+	if (g_dm4310.bringup_done) {
+		printk("Bringup done (%u motors online), holding joints\n", g_dm4310.online_mask);
+	} else {
+		printk("Bringup timeout - joint hold disabled, balance only\n");
+	}
 
 	/* Auto-enable without remote: force SBUS connected + all switches on */
 	g_chassis_debug_override.magic = 0x44424731U;
